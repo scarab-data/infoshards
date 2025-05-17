@@ -27,7 +27,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Default data paths
-DEFAULT_DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app/data", "UCD_1999-2020.txt")
+DEFAULT_DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "project/data", "UCD_1999-2020.txt")
 DATA_CACHE = {}  # Simple in-memory cache for loaded datasets
 
 class DataLoader:
