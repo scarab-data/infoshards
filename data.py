@@ -1,5 +1,5 @@
 """
-Data loading and processing utilities for Vextra
+Data loading and processing utilities for InfoShards
 Handles loading, cleaning, and preparing datasets for analysis
 """
 
@@ -15,9 +15,10 @@ import os
 import logging
 from datetime import datetime
 from typing import Dict, Optional
+import io
+import requests
 import pandas as pd
 import numpy as np
-
 
 # Configure logging
 logging.basicConfig(
@@ -26,16 +27,24 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Default data paths
-DEFAULT_DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "UCD_1999-2020.txt")
+# GitHub raw content URL for your data file
+GITHUB_DATA_URL = "https://raw.githubusercontent.com/scarab-data/infoshards/main/data/UCD_1999-2020.txt"
+
+# Local path as fallback
+DEFAULT_DATA_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "data", "UCD_1999-2020.txt"
+)
+
 DATA_CACHE = {}  # Simple in-memory cache for loaded datasets
+
 
 class DataLoader:
     """Data loading and processing for tab-separated datasets"""
 
-    def __init__(self, data_path=DEFAULT_DATA_PATH):
+    def __init__(self, data_path=DEFAULT_DATA_PATH, github_url=GITHUB_DATA_URL):
         """Initialize the data loader with a path to the dataset"""
         self.data_path = data_path
+        self.github_url = github_url
         self.data = None
         self.metadata = {
             "filename": os.path.basename(data_path),
@@ -52,6 +61,7 @@ class DataLoader:
     def load_data(self, force_reload=False) -> bool:
         """
         Load the tab-separated dataset into a pandas DataFrame
+        First tries to load from GitHub, then falls back to local file
 
         Args:
             force_reload: Whether to force reload even if already loaded
@@ -61,49 +71,86 @@ class DataLoader:
         """
         # Check if already loaded and not forcing reload
         if self.loaded and not force_reload:
-            logger.info(f"Dataset already loaded: {self.data_path}")
+            logger.info("Dataset already loaded")
             return True
 
         # Check if in cache
         if self.data_path in DATA_CACHE and not force_reload:
-            logger.info(f"Loading dataset from cache: {self.data_path}")
+            logger.info("Loading dataset from cache")
             self.data = DATA_CACHE[self.data_path]["data"]
             self.metadata = DATA_CACHE[self.data_path]["metadata"]
             self.loaded = True
             return True
 
-        # Check if file exists
-        if not os.path.exists(self.data_path):
-            logger.error(f"Dataset file not found: {self.data_path}")
-            return False
-
+        # First try to load from GitHub
         try:
-            # Get file metadata
-            file_stats = os.stat(self.data_path)
-            self.metadata["size"] = file_stats.st_size
-            self.metadata["last_modified"] = datetime.fromtimestamp(file_stats.st_mtime)
+            logger.info(f"Attempting to load dataset from GitHub: {self.github_url}")
+            response = requests.get(self.github_url, timeout=10)
+            response.raise_for_status()  # Raise exception for HTTP errors
 
-            # Load the dataset
-            logger.info(f"Loading dataset from file: {self.data_path}")
-            self.data = pd.read_csv(self.data_path, sep="\t")
+            # Load data from the response content
+            self.data = pd.read_csv(io.StringIO(response.text), sep="\t")
 
             # Update metadata
+            self.metadata["size"] = len(response.text)
+            self.metadata["last_modified"] = datetime.now()
             self.metadata["num_rows"] = len(self.data)
             self.metadata["num_columns"] = len(self.data.columns)
             self.metadata["columns"] = list(self.data.columns)
             self.metadata["loaded_at"] = datetime.now()
+            self.metadata["source"] = "github"
 
             # Store in cache
             DATA_CACHE[self.data_path] = {"data": self.data, "metadata": self.metadata}
 
             self.loaded = True
             logger.info(
-                f"Successfully loaded dataset with {self.metadata['num_rows']} rows and {self.metadata['num_columns']} columns"
+                f"Successfully loaded dataset from GitHub with {self.metadata['num_rows']} rows and {self.metadata['num_columns']} columns"
             )
             return True
 
         except Exception as e:
-            logger.error(f"Error loading dataset: {str(e)}")
+            logger.warning(f"Failed to load dataset from GitHub: {str(e)}")
+            # Fall back to local file
+
+        # Try to load from local file
+        try:
+            if os.path.exists(self.data_path):
+                # Get file metadata
+                file_stats = os.stat(self.data_path)
+                self.metadata["size"] = file_stats.st_size
+                self.metadata["last_modified"] = datetime.fromtimestamp(
+                    file_stats.st_mtime
+                )
+
+                # Load the dataset
+                logger.info(f"Loading dataset from local file: {self.data_path}")
+                self.data = pd.read_csv(self.data_path, sep="\t")
+
+                # Update metadata
+                self.metadata["num_rows"] = len(self.data)
+                self.metadata["num_columns"] = len(self.data.columns)
+                self.metadata["columns"] = list(self.data.columns)
+                self.metadata["loaded_at"] = datetime.now()
+                self.metadata["source"] = "local"
+
+                # Store in cache
+                DATA_CACHE[self.data_path] = {
+                    "data": self.data,
+                    "metadata": self.metadata,
+                }
+
+                self.loaded = True
+                logger.info(
+                    f"Successfully loaded dataset from local file with {self.metadata['num_rows']} rows and {self.metadata['num_columns']} columns"
+                )
+                return True
+            else:
+                logger.error(f"Dataset file not found: {self.data_path}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error loading dataset from local file: {str(e)}")
             return False
 
     def get_data(self) -> Optional[pd.DataFrame]:
@@ -277,12 +324,13 @@ data_loader = DataLoader()
 
 
 # Function to get the DataLoader instance
-def get_data_loader(data_path=DEFAULT_DATA_PATH):
+def get_data_loader(data_path=DEFAULT_DATA_PATH, github_url=GITHUB_DATA_URL):
     """
     Get the DataLoader instance
 
     Args:
         data_path: Optional path to a different dataset
+        github_url: Optional URL to a different GitHub dataset
 
     Returns:
         DataLoader instance
@@ -290,8 +338,8 @@ def get_data_loader(data_path=DEFAULT_DATA_PATH):
     global data_loader
 
     # If requesting a different dataset, create a new loader
-    if data_path != data_loader.data_path:
-        data_loader = DataLoader(data_path)
+    if data_path != data_loader.data_path or github_url != data_loader.github_url:
+        data_loader = DataLoader(data_path, github_url)
 
     return data_loader
 

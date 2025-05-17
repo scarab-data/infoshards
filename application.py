@@ -11,6 +11,8 @@
 
 import os
 import sys
+from datetime import datetime
+from typing import Dict, Tuple
 import json
 import logging
 import tempfile
@@ -20,8 +22,6 @@ import subprocess
 import threading
 import time
 import pandas as pd
-from datetime import datetime
-from typing import Dict, Tuple
 
 from flask import (
     Flask,
@@ -58,7 +58,6 @@ os.makedirs(VISUALIZATIONS_DIR, exist_ok=True)
 
 # Constants
 SIMILARITY_THRESHOLD = 0.99  # Minimum similarity score to consider a match
-DEFAULT_DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "UCD_1999-2020.txt")
 REQUEST_TIMEOUT = 180  # 3 minutes timeout for the entire request
 VISUALIZATION_TIMEOUT = 60  # 1 minute timeout for visualization generation
 
@@ -83,13 +82,15 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
     # Clean the data before processing
     # Replace NaN values with appropriate defaults or drop them
     data_subset = data_subset.copy()
-    
+
     # Log data types and NaN counts to help with debugging
     logger.info("Data types and NaN counts before cleaning:")
     for col in data_subset.columns:
         nan_count = data_subset[col].isna().sum()
-        logger.info(f"Column '{col}': type={data_subset[col].dtype}, NaN count={nan_count}")
-    
+        logger.info(
+            f"Column '{col}': type={data_subset[col].dtype}, NaN count={nan_count}"
+        )
+
     # Instead of converting to CSV string, we'll work directly with the DataFrame
     logger.info(
         f"Working with data subset of {len(data_subset)} rows and {len(data_subset.columns)} columns"
@@ -223,7 +224,7 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
             logger.info(f"Visualization code saved to file: {code_file}")
 
             # Add debugging to see what's in the data file
-            with open(csv_path, "r") as f:
+            with open(csv_path, "r", encoding="utf-8") as f:
                 csv_head = f.read(500)  # Read first 500 chars
             logger.debug(f"CSV file head: {csv_head}")
 
@@ -259,14 +260,17 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
 
                 # Try to fix common issues and retry
                 fixed_code = visualization_code
-                
+
                 # Fix for NaN values in Year column
-                if "Cannot convert non-finite values (NA or inf) to integer" in result.stderr:
+                if (
+                    "Cannot convert non-finite values (NA or inf) to integer"
+                    in result.stderr
+                ):
                     logger.info("Attempting to fix NaN values issue and retry")
                     # Add code to handle NaN values before conversion
                     fixed_code = fixed_code.replace(
                         "data['Year'] = data['Year'].astype(int)",
-                        "# Handle NaN values before conversion\ndata = data.dropna(subset=['Year'])\ndata['Year'] = data['Year'].astype(int)"
+                        "# Handle NaN values before conversion\ndata = data.dropna(subset=['Year'])\ndata['Year'] = data['Year'].astype(int)",
                     )
                 # Fix path issue
                 elif "No such file or directory: 'data.csv'" in result.stderr:
