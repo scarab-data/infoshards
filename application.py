@@ -58,7 +58,7 @@ os.makedirs(VISUALIZATIONS_DIR, exist_ok=True)
 
 # Constants
 SIMILARITY_THRESHOLD = 0.99  # Minimum similarity score to consider a match
-DEFAULT_DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "UCD_1999-2020.txt")
+DEFAULT_DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app/data", "UCD_1999-2020.txt")
 REQUEST_TIMEOUT = 180  # 3 minutes timeout for the entire request
 VISUALIZATION_TIMEOUT = 60  # 1 minute timeout for visualization generation
 
@@ -80,6 +80,16 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
     # Get GenAI client
     client = get_genai_client()
 
+    # Clean the data before processing
+    # Replace NaN values with appropriate defaults or drop them
+    data_subset = data_subset.copy()
+    
+    # Log data types and NaN counts to help with debugging
+    logger.info("Data types and NaN counts before cleaning:")
+    for col in data_subset.columns:
+        nan_count = data_subset[col].isna().sum()
+        logger.info(f"Column '{col}': type={data_subset[col].dtype}, NaN count={nan_count}")
+    
     # Instead of converting to CSV string, we'll work directly with the DataFrame
     logger.info(
         f"Working with data subset of {len(data_subset)} rows and {len(data_subset.columns)} columns"
@@ -142,7 +152,8 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
         
         Important requirements:
         - Use pandas to read and process the data
-        - Make sure to handle data types correctly (convert strings to numbers if needed)
+        - IMPORTANT: Handle missing values properly - use dropna() or fillna() as appropriate
+        - Make sure to handle data types correctly (convert strings to numbers if needed, but check for NaN values first)
         - Create a clear, professional visualization with proper labels and title
         - Use plt.savefig('output.svg', format='svg', bbox_inches='tight')
         - Save the processed data that you actually visualize to 'processed_data.csv' using df.to_csv('processed_data.csv', index=False)
@@ -160,11 +171,12 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
         When creating visualizations:
         1. Always use pandas to read CSV files and handle data properly
         2. Pay careful attention to data types - convert strings to appropriate types when needed
-        3. For questions about counts or totals, make sure to use appropriate aggregation functions
-        4. Create clear, professional visualizations with proper labels
-        5. ALWAYS save the processed data that is actually visualized to 'processed_data.csv'
-        6. Include a comment at the end with key findings from the visualization
-        7. Return only executable Python code without any markdown formatting or explanations
+        3. ALWAYS handle missing values properly using dropna() or fillna() methods
+        4. For questions about counts or totals, make sure to use appropriate aggregation functions
+        5. Create clear, professional visualizations with proper labels
+        6. ALWAYS save the processed data that is actually visualized to 'processed_data.csv'
+        7. Include a comment at the end with key findings from the visualization
+        8. Return only executable Python code without any markdown formatting or explanations
         """
 
         gen_start_time = time.time()
@@ -247,30 +259,37 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
 
                 # Try to fix common issues and retry
                 fixed_code = visualization_code
-                if "No such file or directory: 'data.csv'" in result.stderr:
-                    # Fix path issue
+                
+                # Fix for NaN values in Year column
+                if "Cannot convert non-finite values (NA or inf) to integer" in result.stderr:
+                    logger.info("Attempting to fix NaN values issue and retry")
+                    # Add code to handle NaN values before conversion
+                    fixed_code = fixed_code.replace(
+                        "data['Year'] = data['Year'].astype(int)",
+                        "# Handle NaN values before conversion\ndata = data.dropna(subset=['Year'])\ndata['Year'] = data['Year'].astype(int)"
+                    )
+                # Fix path issue
+                elif "No such file or directory: 'data.csv'" in result.stderr:
                     fixed_code = visualization_code.replace(
                         "'data.csv'", f"'{csv_path}'"
                     )
                     logger.info("Attempting to fix file path issue and retry")
 
-                    with open(code_file, "w", encoding="utf-8") as f:
-                        f.write(fixed_code)
+                with open(code_file, "w", encoding="utf-8") as f:
+                    f.write(fixed_code)
 
-                    # Retry execution
-                    result = subprocess.run(
-                        ["python", code_file],
-                        cwd=temp_dir,
-                        capture_output=True,
-                        text=True,
-                        timeout=VISUALIZATION_TIMEOUT,
-                        env=env,
-                    )
+                # Retry execution
+                result = subprocess.run(
+                    ["python", code_file],
+                    cwd=temp_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=VISUALIZATION_TIMEOUT,
+                    env=env,
+                )
 
-                    if result.returncode != 0:
-                        logger.error(f"Retry failed: {result.stderr}")
-                        return "", visualization_code, ""
-                else:
+                if result.returncode != 0:
+                    logger.error(f"Retry failed: {result.stderr}")
                     return "", visualization_code, ""
 
             # Move the output.svg to our visualizations directory
