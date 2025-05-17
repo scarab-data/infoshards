@@ -58,7 +58,7 @@ os.makedirs(VISUALIZATIONS_DIR, exist_ok=True)
 
 # Constants
 SIMILARITY_THRESHOLD = 0.99  # Minimum similarity score to consider a match
-DEFAULT_DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "UCD_1999-2020.txt")
+DEFAULT_DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "infoshards/data", "UCD_1999-2020.txt")
 REQUEST_TIMEOUT = 180  # 3 minutes timeout for the entire request
 VISUALIZATION_TIMEOUT = 60  # 1 minute timeout for visualization generation
 
