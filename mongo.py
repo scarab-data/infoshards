@@ -411,6 +411,89 @@ class VectorDB:
             logger.error(f"Error getting data sources: {str(e)}")
             return []
 
+    def find_related_questions(
+        self,
+        query_vector: List[float],
+        similarity_threshold: float = 0.75,  # Lower threshold for related questions
+        max_results: int = 5,
+        exclude_id: Optional[str] = None,  # ID to exclude (the exact match)
+    ):
+        """
+        Find related questions using MongoDB's vector search with a lower threshold
+
+        Args:
+            query_vector: Vector representation of the query
+            similarity_threshold: Minimum similarity score (0-1) to consider a match
+            max_results: Maximum number of results to return
+            exclude_id: Optional ID to exclude from results (e.g., the exact match)
+
+        Returns:
+            List of matching documents with similarity scores
+        """
+        if not self.connected and not self.connect():
+            logger.error("Cannot search vectors: not connected to MongoDB")
+            return []
+
+        # Convert numpy array to list if needed
+        if isinstance(query_vector, np.ndarray):
+            query_vector = query_vector.tolist()
+
+        try:
+            # Prepare vector search query
+            vector_search_query = {
+                "index": self.qa_index_name,
+                "queryVector": query_vector,
+                "path": "vector",
+                "numCandidates": max_results
+                * 10,  # Retrieve more candidates for filtering
+                "limit": max_results
+                + 1,  # Get one extra in case we need to exclude one
+            }
+
+            # Execute vector search
+            search_results = self.db[self.qa_collection].aggregate(
+                [
+                    {"$vectorSearch": vector_search_query},
+                    {
+                        "$project": {
+                            "_id": 1,
+                            "question_text": 1,
+                            "score": {"$meta": "vectorSearchScore"},
+                        }
+                    },
+                ]
+            )
+
+            # Process results
+            results = []
+            for result in search_results:
+                # MongoDB returns a score between 0 and 1 for cosine similarity
+                similarity = result["score"]
+
+                # Filter by similarity threshold and exclude the specified ID
+                if similarity >= similarity_threshold:
+                    # Convert ObjectId to string for JSON serialization
+                    result_id = str(result["_id"])
+                    if exclude_id and result_id == exclude_id:
+                        continue  # Skip the excluded ID
+
+                    result["_id"] = result_id
+                    result["similarity"] = similarity
+                    results.append(result)
+
+                    # Limit to max_results
+                    if len(results) >= max_results:
+                        break
+
+            logger.info(
+                f"Found {len(results)} related questions above threshold {similarity_threshold}"
+            )
+            return results
+
+        except Exception as e:
+            logger.error(f"Error finding related questions: {str(e)}")
+            return []
+
 
 # Create a singleton instance
 vector_db = VectorDB()

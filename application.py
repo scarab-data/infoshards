@@ -8,8 +8,10 @@
 # pylint: disable=invalid-name
 # pylint: disable=global-statement
 # pylint: disable=subprocess-run-check
+# pylint: disable=unused-import
 
 import os
+import re
 import sys
 from datetime import datetime
 from typing import Dict, Tuple
@@ -279,9 +281,6 @@ def safe_int_convert(df, column):
                     # Insert the helper function at the beginning of the script
                     fixed_code = nan_fix + fixed_code
 
-                    # Find all instances of .astype(int) and replace them with safe conversion
-                    import re
-
                     # Find patterns like df['Column'].astype(int) or data['Column'].astype(int)
                     int_conversions = re.findall(
                         r"(\w+\['[^']+'\])\.astype\(int\)", fixed_code
@@ -515,6 +514,24 @@ def process_question(question: str) -> Dict:
         f"Similar question search completed in {search_time:.2f} seconds, found {len(similar_questions)} matches"
     )
 
+    # Find related questions with a lower threshold (regardless of exact match)
+    logger.info("Searching for related questions with lower threshold")
+    related_start = time.time()
+
+    # If we found an exact match, exclude it from related questions
+    exclude_id = similar_questions[0]["_id"] if similar_questions else None
+
+    related_questions = vector_db.find_related_questions(
+        query_vector=question_vector,
+        similarity_threshold=0.75,  # Lower threshold for related questions
+        max_results=5,
+        exclude_id=exclude_id,
+    )
+    related_time = time.time() - related_start
+    logger.info(
+        f"Related question search completed in {related_time:.2f} seconds, found {len(related_questions)} matches"
+    )
+
     # If we found a similar question with good similarity, return its answer
     if similar_questions:
         best_match = similar_questions[0]
@@ -533,6 +550,7 @@ def process_question(question: str) -> Dict:
             "visualization_type": best_match.get("visualization_type", "image/png"),
             "similarity": best_match["similarity"],
             "similar_question": best_match["question_text"],
+            "related_questions": related_questions,
             "source": "cache",
         }
 
@@ -673,6 +691,7 @@ def process_question(question: str) -> Dict:
         "answer": answer,
         "visualization_id": doc_id,
         "visualization_type": visualization_type,
+        "related_questions": related_questions,  # Add related questions to the response
         "source": "generated",
     }
 
