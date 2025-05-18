@@ -159,7 +159,9 @@ class VectorDB:
         question_text: str,
         question_vector: List[float],
         answer_text: str,
-        visualization_path: Optional[str] = None,
+        visualization_base64: Optional[str] = None,
+        visualization_type: Optional[str] = "image/png",
+        processed_data: Optional[str] = None,
         data_source: Optional[str] = None,
         metadata: Optional[Dict] = None,
     ) -> Optional[str]:
@@ -170,7 +172,9 @@ class VectorDB:
             question_text: The original question text
             question_vector: Vector representation of the question
             answer_text: The answer text
-            visualization_path: Path to visualization file (SVG, PNG, etc.)
+            visualization_base64: Base64 encoded visualization image
+            visualization_type: MIME type of the visualization (e.g., 'image/png')
+            processed_data: Processed data as CSV string
             data_source: Reference to the data source used
             metadata: Additional metadata about this Q&A pair
 
@@ -195,8 +199,11 @@ class VectorDB:
         }
 
         # Add optional fields
-        if visualization_path:
-            doc["visualization_path"] = visualization_path
+        if visualization_base64:
+            doc["visualization_base64"] = visualization_base64
+            doc["visualization_type"] = visualization_type
+        if processed_data:
+            doc["processed_data"] = processed_data
         if data_source:
             doc["data_source"] = data_source
         if metadata:
@@ -209,22 +216,25 @@ class VectorDB:
             )
             if existing:
                 # Update existing document
+                update_fields = {
+                    "vector": question_vector,
+                    "answer_text": answer_text,
+                    "updated_at": datetime.utcnow(),
+                }
+
+                # Add optional fields to update
+                if visualization_base64:
+                    update_fields["visualization_base64"] = visualization_base64
+                    update_fields["visualization_type"] = visualization_type
+                if processed_data:
+                    update_fields["processed_data"] = processed_data
+                if data_source:
+                    update_fields["data_source"] = data_source
+                if metadata:
+                    update_fields["metadata"] = metadata
+
                 result = self.db[self.qa_collection].update_one(
-                    {"_id": existing["_id"]},
-                    {
-                        "$set": {
-                            "vector": question_vector,
-                            "answer_text": answer_text,
-                            "updated_at": datetime.utcnow(),
-                            **(
-                                {"visualization_path": visualization_path}
-                                if visualization_path
-                                else {}
-                            ),
-                            **({"data_source": data_source} if data_source else {}),
-                            **({"metadata": metadata} if metadata else {}),
-                        }
-                    },
+                    {"_id": existing["_id"]}, {"$set": update_fields}
                 )
                 logger.info(f"Updated existing Q&A document with ID {existing['_id']}")
                 return str(existing["_id"])
@@ -283,7 +293,9 @@ class VectorDB:
                             "_id": 1,
                             "question_text": 1,
                             "answer_text": 1,
-                            "visualization_path": 1,
+                            "visualization_base64": 1,
+                            "visualization_type": 1,
+                            "processed_data": 1,
                             "data_source": 1,
                             "score": {"$meta": "vectorSearchScore"},
                         }
@@ -426,7 +438,8 @@ if __name__ == "__main__":
             question_text="What is the average temperature?",
             question_vector=test_vector,
             answer_text="The average temperature is 72°F.",
-            visualization_path="/static/temp_chart.svg",
+            visualization_base64="SGVsbG8gV29ybGQ=",  # Base64 encoded "Hello World"
+            visualization_type="image/png",
             data_source="temperature_data.csv",
         )
 

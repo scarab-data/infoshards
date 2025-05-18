@@ -16,11 +16,12 @@ from typing import Dict, Tuple
 import json
 import logging
 import tempfile
-import uuid
 import shutil
 import subprocess
 import threading
 import time
+import base64
+from bson.objectid import ObjectId
 import pandas as pd
 
 from flask import (
@@ -28,7 +29,6 @@ from flask import (
     jsonify,
     request,
     render_template,
-    send_from_directory,
 )
 
 # Import our modules
@@ -52,17 +52,13 @@ app = application = Flask(
     __name__, template_folder=template_dir, static_folder=static_dir
 )
 
-# Create visualizations directory if it doesn't exist
-VISUALIZATIONS_DIR = os.path.join(static_dir, "visualizations")
-os.makedirs(VISUALIZATIONS_DIR, exist_ok=True)
-
 # Constants
 SIMILARITY_THRESHOLD = 0.99  # Minimum similarity score to consider a match
 REQUEST_TIMEOUT = 180  # 3 minutes timeout for the entire request
 VISUALIZATION_TIMEOUT = 60  # 1 minute timeout for visualization generation
 
 
-def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
+def generate_visualization(data_subset, question: str) -> Tuple[str, str, str, str]:
     """
     Generate a visualization for the data subset based on the question and save the processed data
 
@@ -71,7 +67,7 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
         question: The question being asked
 
     Returns:
-        Tuple of (visualization_path, visualization_code, processed_data_path)
+        Tuple of (visualization_base64, visualization_type, visualization_code, processed_data_csv)
     """
     logger.info(f"Starting visualization generation for question: {question}")
     start_time = time.time()
@@ -115,7 +111,7 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
 
     # Create a temporary directory for our files
     temp_dir = tempfile.mkdtemp()
-    processed_data_path = ""
+    processed_data_csv = ""
 
     try:
         # Save the DataFrame to a CSV file with proper quoting to avoid issues
@@ -129,7 +125,8 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
         sample_path = os.path.join(temp_dir, "sample.csv")
         data_subset.head(10).to_csv(sample_path, index=False)
 
-        # Create prompt for visualization generation with data export
+        # Create prompt for visualization generation with data export and base64 encoding
+        # Note the enhanced instructions about NaN values
         prompt = f"""
         Create a Python visualization script using matplotlib or seaborn to answer the following question:
         
@@ -148,15 +145,18 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
         1. Load the data from 'data.csv' using pandas
         2. Process the data correctly to answer the question
         3. Create an appropriate visualization
-        4. Save the plot as an SVG file
+        4. Save the plot as a PNG file
         5. IMPORTANT: Also save the processed data (after any filtering, grouping, or calculations) to a file named 'processed_data.csv'
         
         Important requirements:
         - Use pandas to read and process the data
-        - IMPORTANT: Handle missing values properly - use dropna() or fillna() as appropriate
+        - CRITICAL: The data contains NaN values that must be handled properly before any type conversion
+        - ALWAYS check for and handle NaN values BEFORE converting columns to integers or other types
+        - For any column that needs to be converted to integers, first use dropna() or fillna() methods
+        - Example of safe conversion: df = df.dropna(subset=['Year']); df['Year'] = df['Year'].fillna(0).astype(int)
         - Make sure to handle data types correctly (convert strings to numbers if needed, but check for NaN values first)
         - Create a clear, professional visualization with proper labels and title
-        - Use plt.savefig('output.svg', format='svg', bbox_inches='tight')
+        - Use plt.savefig('output.png', format='png', dpi=300, bbox_inches='tight')
         - Save the processed data that you actually visualize to 'processed_data.csv' using df.to_csv('processed_data.csv', index=False)
         - Include a comment at the end of your code that explains the key findings from the visualization in 3-5 bullet points
         - Do NOT use plt.show()
@@ -172,12 +172,14 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
         When creating visualizations:
         1. Always use pandas to read CSV files and handle data properly
         2. Pay careful attention to data types - convert strings to appropriate types when needed
-        3. ALWAYS handle missing values properly using dropna() or fillna() methods
-        4. For questions about counts or totals, make sure to use appropriate aggregation functions
-        5. Create clear, professional visualizations with proper labels
-        6. ALWAYS save the processed data that is actually visualized to 'processed_data.csv'
-        7. Include a comment at the end with key findings from the visualization
-        8. Return only executable Python code without any markdown formatting or explanations
+        3. CRITICAL: ALWAYS check for and handle NaN values BEFORE converting data types
+        4. For any column that needs to be converted to integers, first use dropna() or fillna() methods
+        5. Example of safe conversion: df = df.dropna(subset=['Year']); df['Year'] = df['Year'].fillna(0).astype(int)
+        6. For questions about counts or totals, make sure to use appropriate aggregation functions
+        7. Create clear, professional visualizations with proper labels
+        8. ALWAYS save the processed data that is actually visualized to 'processed_data.csv'
+        9. Include a comment at the end with key findings from the visualization
+        10. Return only executable Python code without any markdown formatting or explanations
         """
 
         gen_start_time = time.time()
@@ -201,19 +203,6 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
             visualization_code = visualization_code.strip()
 
         logger.info(f"Visualization code length: {len(visualization_code)} characters")
-
-        # Create a unique filename for the visualization
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        unique_id = str(uuid.uuid4())[:8]
-        filename = f"viz_{timestamp}_{unique_id}.svg"
-        filepath = os.path.join(VISUALIZATIONS_DIR, filename)
-
-        # Also create a unique filename for the processed data
-        data_filename = f"data_{timestamp}_{unique_id}.csv"
-        data_filepath = os.path.join(VISUALIZATIONS_DIR, data_filename)
-
-        logger.info(f"Visualization will be saved as: {filename}")
-        logger.info(f"Processed data will be saved as: {data_filename}")
 
         # Execute the visualization code in the temporary directory
         try:
@@ -267,11 +256,49 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
                     in result.stderr
                 ):
                     logger.info("Attempting to fix NaN values issue and retry")
-                    # Add code to handle NaN values before conversion
-                    fixed_code = fixed_code.replace(
-                        "data['Year'] = data['Year'].astype(int)",
-                        "# Handle NaN values before conversion\ndata = data.dropna(subset=['Year'])\ndata['Year'] = data['Year'].astype(int)",
+
+                    # Add a more comprehensive fix at the beginning of the script
+                    # This will handle NaN values for any column being converted to int
+                    nan_fix = """
+# Add comprehensive NaN handling at the beginning
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Helper function to safely convert columns to int
+def safe_int_convert(df, column):
+    if column in df.columns:
+        # First drop rows where the column is NaN if it's a critical column
+        df = df.dropna(subset=[column])
+        # Then convert to int
+        df[column] = df[column].astype(int)
+    return df
+
+"""
+                    # Insert the helper function at the beginning of the script
+                    fixed_code = nan_fix + fixed_code
+
+                    # Find all instances of .astype(int) and replace them with safe conversion
+                    import re
+
+                    # Find patterns like df['Column'].astype(int) or data['Column'].astype(int)
+                    int_conversions = re.findall(
+                        r"(\w+\['[^']+'\])\.astype\(int\)", fixed_code
                     )
+
+                    for match in int_conversions:
+                        var_name = match.split("[")[0]  # Extract df or data
+                        col_name = match.split("[")[1].split("]")[0]  # Extract 'Column'
+
+                        # Replace with safe conversion
+                        old_code = f"{match}.astype(int)"
+                        new_code = f"# Safe conversion\n{var_name} = safe_int_convert({var_name}, {col_name})"
+
+                        fixed_code = fixed_code.replace(old_code, new_code)
+
+                    logger.info("Applied comprehensive NaN handling fix")
+
                 # Fix path issue
                 elif "No such file or directory: 'data.csv'" in result.stderr:
                     fixed_code = visualization_code.replace(
@@ -294,21 +321,109 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
 
                 if result.returncode != 0:
                     logger.error(f"Retry failed: {result.stderr}")
-                    return "", visualization_code, ""
 
-            # Move the output.svg to our visualizations directory
-            output_svg = os.path.join(temp_dir, "output.svg")
-            processed_data_csv = os.path.join(temp_dir, "processed_data.csv")
+                    # If still failing, try a more aggressive approach
+                    if (
+                        "Cannot convert non-finite values" in result.stderr
+                        or "Year" in result.stderr
+                    ):
+                        logger.info(
+                            "Attempting more aggressive fix for numeric conversion issues"
+                        )
 
-            if os.path.exists(output_svg):
-                shutil.copy(output_svg, filepath)
-                logger.info(f"Visualization saved to {filepath}")
+                        # Even more aggressive fix - add at the beginning of the script
+                        aggressive_fix = """
+# Add very aggressive NaN handling at the beginning
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load the data
+df = pd.read_csv('data.csv')
+
+# Handle all numeric columns that might need conversion
+for col in df.columns:
+    # Try to convert to numeric first
+    df[col] = pd.to_numeric(df[col], errors='ignore')
+    
+    # Check if this column contains year-like values
+    if 'year' in col.lower() or 'date' in col.lower():
+        # For year columns, drop NaN values and convert to int
+        df = df.dropna(subset=[col])
+        # Convert to string first to handle any remaining issues
+        df[col] = df[col].astype(str).replace('nan', '0').replace('NaN', '0').replace('None', '0')
+        # Then convert to int if it looks like a year
+        try:
+            df[col] = df[col].astype(int)
+        except:
+            # If conversion fails, keep as string
+            pass
+
+"""
+                        # Replace everything up to the first plot-related code
+                        # Find the first occurrence of plt or sns
+                        plot_index = fixed_code.find("plt.")
+                        if plot_index == -1:
+                            plot_index = fixed_code.find("sns.")
+
+                        if plot_index != -1:
+                            # Keep only the plotting part of the code
+                            plotting_code = fixed_code[plot_index:]
+                            # Create new script with aggressive fix + plotting code
+                            fixed_code = (
+                                aggressive_fix
+                                + "\n# Original plotting code\n"
+                                + plotting_code
+                            )
+                        else:
+                            # If no plotting code found, just add the fix at the beginning
+                            fixed_code = aggressive_fix + fixed_code
+
+                        with open(code_file, "w", encoding="utf-8") as f:
+                            f.write(fixed_code)
+
+                        # Try one more time
+                        result = subprocess.run(
+                            ["python", code_file],
+                            cwd=temp_dir,
+                            capture_output=True,
+                            text=True,
+                            timeout=VISUALIZATION_TIMEOUT,
+                            env=env,
+                        )
+
+                        if result.returncode != 0:
+                            logger.error(f"All fixes failed: {result.stderr}")
+                            return "", "image/png", visualization_code, ""
+                    else:
+                        return "", "image/png", visualization_code, ""
+
+            # Check if output.png exists and convert to base64
+            output_png = os.path.join(temp_dir, "output.png")
+            processed_data_path = os.path.join(temp_dir, "processed_data.csv")
+
+            visualization_base64 = ""
+            visualization_type = "image/png"
+
+            if os.path.exists(output_png):
+                # Read the PNG file and convert to base64
+                with open(output_png, "rb") as img_file:
+                    visualization_base64 = base64.b64encode(img_file.read()).decode(
+                        "utf-8"
+                    )
+                logger.info(
+                    f"Visualization converted to base64 ({len(visualization_base64)} bytes)"
+                )
 
                 # Check if processed data was saved
-                if os.path.exists(processed_data_csv):
-                    shutil.copy(processed_data_csv, data_filepath)
-                    logger.info(f"Processed data saved to {data_filepath}")
-                    processed_data_path = f"/static/visualizations/{data_filename}"
+                if os.path.exists(processed_data_path):
+                    # Read the processed data as CSV string
+                    with open(processed_data_path, "r", encoding="utf-8") as data_file:
+                        processed_data_csv = data_file.read()
+                    logger.info(
+                        f"Processed data read ({len(processed_data_csv)} bytes)"
+                    )
                 else:
                     logger.warning("Processed data file was not generated")
 
@@ -317,22 +432,23 @@ def generate_visualization(data_subset, question: str) -> Tuple[str, str, str]:
                     f"Total visualization generation time: {total_time:.2f} seconds"
                 )
                 return (
-                    f"/static/visualizations/{filename}",
+                    visualization_base64,
+                    visualization_type,
                     visualization_code,
-                    processed_data_path,
+                    processed_data_csv,
                 )
             else:
-                logger.error("Visualization script did not generate output.svg")
-                return "", visualization_code, ""
+                logger.error("Visualization script did not generate output.png")
+                return "", "image/png", visualization_code, ""
 
         except subprocess.TimeoutExpired:
             logger.error(
                 f"Visualization script timed out after {VISUALIZATION_TIMEOUT} seconds"
             )
-            return "", visualization_code, ""
+            return "", "image/png", visualization_code, ""
         except Exception as e:
             logger.error(f"Error generating visualization: {str(e)}")
-            return "", visualization_code, ""
+            return "", "image/png", visualization_code, ""
 
     finally:
         # Clean up the temporary directory
@@ -413,7 +529,8 @@ def process_question(question: str) -> Dict:
             "success": True,
             "question": question,
             "answer": best_match["answer_text"],
-            "visualization_path": best_match.get("visualization_path", ""),
+            "visualization_id": best_match["_id"],
+            "visualization_type": best_match.get("visualization_type", "image/png"),
             "similarity": best_match["similarity"],
             "similar_question": best_match["question_text"],
             "source": "cache",
@@ -434,53 +551,20 @@ def process_question(question: str) -> Dict:
     # Generate visualization and processed data
     logger.info("Starting visualization generation")
     viz_start = time.time()
-    visualization_path, visualization_code, processed_data_path = (
+    visualization_base64, visualization_type, visualization_code, processed_data_csv = (
         generate_visualization(data_subset, question)
     )
     viz_time = time.time() - viz_start
     logger.info(
-        f"Visualization generation completed in {viz_time:.2f} seconds, path: {visualization_path}"
+        f"Visualization generation completed in {viz_time:.2f} seconds, base64 length: {len(visualization_base64)}"
     )
-    logger.info(f"Processed data path: {processed_data_path}")
-
-    # Prepare data for analysis
-    processed_data_content = ""
-    if processed_data_path:
-        # Read the processed data file
-        try:
-            processed_data_file = os.path.join(
-                os.path.abspath(VISUALIZATIONS_DIR),
-                os.path.basename(
-                    processed_data_path.replace("/static/visualizations/", "")
-                ),
-            )
-            if os.path.exists(processed_data_file):
-                # Read the processed data
-                processed_df = pd.read_csv(processed_data_file)
-                logger.info(
-                    f"Read processed data with {len(processed_df)} rows and {len(processed_df.columns)} columns"
-                )
-
-                # Convert to string representation
-                processed_data_content = processed_df.to_string(index=False)
-
-                # If it's too large, summarize it
-                if len(processed_data_content) > 5000:
-                    processed_data_content = processed_df.head(50).to_string(
-                        index=False
-                    )
-                    processed_data_content += f"\n\n[Note: Showing only first 50 rows of {len(processed_df)} total rows]"
-            else:
-                logger.warning(f"Processed data file not found: {processed_data_file}")
-        except Exception as e:
-            logger.error(f"Error reading processed data: {str(e)}")
 
     # Generate answer using GenAI with the processed data
     logger.info("Generating answer using GenAI with processed data")
     answer_start = time.time()
 
     # Prepare the prompt with the processed data
-    if processed_data_content:
+    if processed_data_csv:
         # Use the processed data for analysis
         prompt = f"""
         I need to analyze the following processed data to answer a question.
@@ -488,7 +572,9 @@ def process_question(question: str) -> Dict:
         QUESTION: {question}
         
         PROCESSED DATA:
-        {processed_data_content}
+        {processed_data_csv[:5000] if len(processed_data_csv) > 5000 else processed_data_csv}
+        
+        {f"[Note: Showing only first 5000 characters of {len(processed_data_csv)} total characters]" if len(processed_data_csv) > 5000 else ""}
         
         This data was specifically processed to answer the question. It represents the key information extracted from a larger dataset.
         
@@ -563,12 +649,13 @@ def process_question(question: str) -> Dict:
         question_text=question,
         question_vector=question_vector,
         answer_text=answer,
-        visualization_path=visualization_path,
+        visualization_base64=visualization_base64,
+        visualization_type=visualization_type,
+        processed_data=processed_data_csv,
         data_source=data_loader.data_path,
         metadata={
             "generated_at": datetime.now().isoformat(),
             "visualization_code": visualization_code if visualization_code else None,
-            "processed_data_path": processed_data_path if processed_data_path else None,
         },
     )
     store_time = time.time() - store_start
@@ -584,7 +671,8 @@ def process_question(question: str) -> Dict:
         "success": True,
         "question": question,
         "answer": answer,
-        "visualization_path": visualization_path,
+        "visualization_id": doc_id,
+        "visualization_type": visualization_type,
         "source": "generated",
     }
 
@@ -776,11 +864,50 @@ def get_data_sample():
         )
 
 
-@app.route("/visualizations/<path:filename>")
-def get_visualization(filename):
-    """Serve visualization files"""
-    logger.info(f"Visualization requested: {filename}")
-    return send_from_directory(VISUALIZATIONS_DIR, filename)
+@app.route("/visualizations/<path:doc_id>")
+def get_visualization(doc_id):
+    """Serve visualization from MongoDB by document ID"""
+    logger.info(f"Visualization requested for document: {doc_id}")
+
+    # Get the vector DB
+    vector_db = get_vector_db()
+
+    if not vector_db.connected and not vector_db.connect():
+        logger.error("Cannot retrieve visualization: not connected to MongoDB")
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        # Convert string ID to ObjectId
+        obj_id = ObjectId(doc_id)
+
+        # Retrieve the document directly from the collection
+        document = vector_db.db[vector_db.qa_collection].find_one({"_id": obj_id})
+
+        if not document:
+            logger.error(f"Document not found: {doc_id}")
+            return jsonify({"error": "Visualization not found"}), 404
+
+        # Get the base64 encoded visualization and its type
+        visualization_base64 = document.get("visualization_base64", "")
+        visualization_type = document.get("visualization_type", "image/png")
+
+        if not visualization_base64:
+            logger.error(f"No visualization found in document: {doc_id}")
+            return jsonify({"error": "No visualization in document"}), 404
+
+        # Decode the base64 data
+        try:
+            visualization_data = base64.b64decode(visualization_base64)
+
+            # Return the visualization with the appropriate content type
+            return visualization_data, 200, {"Content-Type": visualization_type}
+        except Exception as e:
+            logger.error(f"Error decoding base64 data: {str(e)}")
+            return jsonify({"error": "Invalid visualization data"}), 500
+
+    except Exception as e:
+        logger.error(f"Error retrieving visualization: {str(e)}")
+        return jsonify({"error": "Failed to retrieve visualization"}), 500
 
 
 @app.route("/health", methods=["GET"])

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,146 +9,367 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Add Marked.js for Markdown rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Add Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
     <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --accent-color: #4895ef;
+            --light-color: #f8f9fa;
+            --dark-color: #212529;
+            --success-color: #4cc9f0;
+            --info-color: #4895ef;
+            --warning-color: #f72585;
+            --danger-color: #e63946;
+            --border-radius: 12px;
+            --box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
-            color: #333;
+            color: var(--dark-color);
             padding: 20px;
             max-width: 1200px;
             margin: 0 auto;
+            background-color: #f9fafb;
         }
+
         .header {
-            background-color: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border-left: 5px solid #0d6efd;
-        }
-        .dataset-info {
-            background-color: #e9f7ef;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border-left: 5px solid #27ae60;
-            font-size: 0.9rem;
-        }
-        .dataset-info h3 {
-            color: #27ae60;
-            margin-top: 0;
-        }
-        .dataset-info p {
-            margin-bottom: 0.5rem;
-        }
-        .dataset-info-toggle {
-            color: #27ae60;
-            cursor: pointer;
-            text-decoration: underline;
-            font-weight: 500;
-        }
-        .question-form {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 40px 30px;
+            border-radius: var(--border-radius);
             margin-bottom: 30px;
+            box-shadow: var(--box-shadow);
+            position: relative;
+            overflow: hidden;
         }
+
+        .header::before {
+            content: "";
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 70%);
+            pointer-events: none;
+        }
+
+        .header h1 {
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-weight: 300;
+            font-size: 1.2rem;
+            margin-bottom: 0;
+        }
+
+        .dataset-info {
+            background-color: white;
+            padding: 25px;
+            border-radius: var(--border-radius);
+            margin-bottom: 30px;
+            box-shadow: var(--box-shadow);
+            border-top: 5px solid var(--info-color);
+            font-size: 0.95rem;
+            transition: var(--transition);
+        }
+
+        .dataset-info:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
+        }
+
+        .dataset-info h3 {
+            color: var(--info-color);
+            margin-top: 0;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+
+        .dataset-info h3::before {
+            content: "\f1c0";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            margin-right: 10px;
+            color: var(--info-color);
+        }
+
+        .dataset-info p {
+            margin-bottom: 0.8rem;
+        }
+
+        .dataset-info-toggle {
+            color: var(--primary-color);
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            transition: var(--transition);
+        }
+
+        .dataset-info-toggle:hover {
+            color: var(--secondary-color);
+        }
+
+        .question-form {
+            background-color: white;
+            padding: 30px;
+            border-radius: var(--border-radius);
+            margin-bottom: 30px;
+            box-shadow: var(--box-shadow);
+        }
+
+        .form-control {
+            border-radius: 10px;
+            padding: 12px 20px;
+            border: 1px solid #e2e8f0;
+            transition: var(--transition);
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            border-radius: 10px;
+            padding: 12px 25px;
+            font-weight: 500;
+            transition: var(--transition);
+            box-shadow: 0 4px 6px rgba(67, 97, 238, 0.2);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(67, 97, 238, 0.3);
+        }
+
         .result-container {
-            margin-top: 20px;
-            padding: 20px;
-            border-radius: 8px;
-            background-color: #f8f9fa;
-            border-left: 5px solid #198754;
+            margin-top: 30px;
+            padding: 30px;
+            border-radius: var(--border-radius);
+            background-color: white;
+            box-shadow: var(--box-shadow);
+            border-top: 5px solid var(--success-color);
+            transition: var(--transition);
         }
+
+        .result-container:hover {
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
+        }
+
         .visualization-container {
-            margin-top: 20px;
+            margin: 30px 0;
             text-align: center;
+            transition: var(--transition);
         }
+
         .visualization-container img {
             max-width: 100%;
             height: auto;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            transition: var(--transition);
         }
+
+        .visualization-container img:hover {
+            transform: scale(1.02);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+        }
+
         .answer-container {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-top: 25px;
+            padding: 25px;
+            background-color: #f8f9fa;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
+
+        .answer-container h3 {
+            color: var(--secondary-color);
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .answer-container h3::before {
+            content: "\f059";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            margin-right: 10px;
+            color: var(--secondary-color);
+        }
+
         .loading {
             display: none;
             text-align: center;
-            margin: 20px 0;
+            margin: 30px 0;
         }
+
         .spinner-border {
             width: 3rem;
             height: 3rem;
+            color: var(--primary-color);
         }
+
         .error-message {
-            color: #dc3545;
-            padding: 10px;
-            border-radius: 5px;
-            background-color: #f8d7da;
+            color: var(--danger-color);
+            padding: 15px;
+            border-radius: var(--border-radius);
+            background-color: #fff5f5;
             margin-top: 20px;
             display: none;
+            box-shadow: var(--box-shadow);
+            border-left: 5px solid var(--danger-color);
         }
+
         /* Style for markdown content */
         .markdown-content {
             line-height: 1.8;
         }
-        .markdown-content h1, .markdown-content h2, .markdown-content h3 {
-            margin-top: 1em;
-            margin-bottom: 0.5em;
+
+        .markdown-content h1,
+        .markdown-content h2,
+        .markdown-content h3 {
+            margin-top: 1.2em;
+            margin-bottom: 0.7em;
+            color: var(--secondary-color);
         }
-        .markdown-content ul, .markdown-content ol {
+
+        .markdown-content ul,
+        .markdown-content ol {
             padding-left: 2em;
+            margin-bottom: 1.5em;
         }
+
         .markdown-content blockquote {
-            border-left: 4px solid #ddd;
-            padding-left: 1em;
+            border-left: 4px solid var(--accent-color);
+            padding: 0.5em 1em;
             color: #666;
+            background-color: #f9f9f9;
+            margin: 1.5em 0;
+            border-radius: 0 var(--border-radius) var(--border-radius) 0;
         }
+
         .markdown-content code {
             background-color: #f5f5f5;
-            padding: 2px 4px;
-            border-radius: 3px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9em;
         }
+
         .markdown-content pre {
             background-color: #f5f5f5;
-            padding: 1em;
-            border-radius: 5px;
+            padding: 1.2em;
+            border-radius: var(--border-radius);
             overflow-x: auto;
+            margin: 1.5em 0;
         }
+
         .markdown-content table {
             border-collapse: collapse;
             width: 100%;
-            margin: 1em 0;
+            margin: 1.5em 0;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
-        .markdown-content th, .markdown-content td {
-            border: 1px solid #ddd;
-            padding: 8px;
+
+        .markdown-content th,
+        .markdown-content td {
+            border: 1px solid #e2e8f0;
+            padding: 12px 15px;
             text-align: left;
         }
+
         .markdown-content th {
-            background-color: #f2f2f2;
+            background-color: #f8f9fa;
+            font-weight: 600;
         }
+
+        .markdown-content tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+
         .example-questions {
-            margin-top: 10px;
+            margin-top: 20px;
         }
+
         .example-question {
             display: inline-block;
             margin-right: 10px;
             margin-bottom: 10px;
-            padding: 5px 10px;
-            background-color: #e9ecef;
-            border-radius: 20px;
+            padding: 8px 16px;
+            background-color: #f0f4ff;
+            border-radius: 30px;
             font-size: 0.9rem;
             cursor: pointer;
-            transition: background-color 0.2s;
+            transition: var(--transition);
+            border: 1px solid #e2e8f0;
+            color: var(--primary-color);
         }
+
         .example-question:hover {
-            background-color: #dee2e6;
+            background-color: #e0e7ff;
+            transform: translateY(-2px);
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        #questionDisplay {
+            color: var(--primary-color);
+            font-weight: 600;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+
+        #sourceInfo {
+            font-size: 0.9rem;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: var(--border-radius);
+            margin-top: 25px;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .header {
+                padding: 30px 20px;
+            }
+
+            .dataset-info,
+            .question-form,
+            .result-container {
+                padding: 20px;
+            }
+
+            .btn-primary {
+                width: 100%;
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -158,8 +380,12 @@
         <div class="dataset-info">
             <h3>About the Dataset</h3>
             <p><strong>CDC Underlying Cause of Death, 1999-2020</strong></p>
-            <p>This dataset contains mortality statistics from the CDC, including deaths by year, age group, sex, race, and injury intent. The data comes from the Multiple Cause of Death Files, 1999-2020, as compiled from data provided by the 57 vital statistics jurisdictions through the Vital Statistics Cooperative Program.</p>
-            <p><span class="dataset-info-toggle" id="showMoreInfo">Show more details ▼</span></p>
+            <p>This dataset contains mortality statistics from the CDC, including deaths by year, age group, sex, race,
+                and injury intent. The data comes from the Multiple Cause of Death Files, 1999-2020, as compiled from
+                data provided by the 57 vital statistics jurisdictions through the Vital Statistics Cooperative Program.
+            </p>
+            <p><span class="dataset-info-toggle" id="showMoreInfo">Show more details <i
+                        class="fas fa-chevron-down"></i></span></p>
             <div id="moreDatasetInfo" style="display: none;">
                 <p>The dataset includes:</p>
                 <ul>
@@ -169,28 +395,40 @@
                 </ul>
                 <p><strong>Important notes:</strong></p>
                 <ul>
-                    <li>Deaths of persons with Age "Not Stated" are included in "All" counts and rates, but are not distributed among age groups</li>
-                    <li>Race and ethnicity information on death certificates is reported by the funeral director, while census data is self-reported</li>
-                    <li>Some years (2008-2009 in Georgia, 2009 in New Jersey, 2000-2001 in California) have reporting anomalies</li>
+                    <li>Deaths of persons with Age "Not Stated" are included in "All" counts and rates, but are not
+                        distributed among age groups</li>
+                    <li>Race and ethnicity information on death certificates is reported by the funeral director, while
+                        census data is self-reported</li>
+                    <li>Some years (2008-2009 in Georgia, 2009 in New Jersey, 2000-2001 in California) have reporting
+                        anomalies</li>
                     <li>Data may be suppressed when they meet confidentiality constraints</li>
                     <li>Death rates are flagged as Unreliable when calculated with a numerator of 20 or less</li>
                 </ul>
-                <p><strong>Source:</strong> Centers for Disease Control and Prevention, National Center for Health Statistics. National Vital Statistics System, Mortality 1999-2020 on CDC WONDER Online Database, released in 2021.</p>
+                <p><strong>Source:</strong> Centers for Disease Control and Prevention, National Center for Health
+                    Statistics. National Vital Statistics System, Mortality 1999-2020 on CDC WONDER Online Database,
+                    released in 2021.</p>
             </div>
         </div>
 
         <div class="question-form">
             <form id="questionForm">
-                <div class="mb-3">
-                    <label for="questionInput" class="form-label">What would you like to know about the mortality data?</label>
-                    <input type="text" class="form-control form-control-lg" id="questionInput" 
-                           placeholder="e.g., What's the trend of suicides among white people from 1999 to 2020?">
+                <div class="mb-4">
+                    <label for="questionInput" class="form-label fw-bold">What would you like to know about the
+                        mortality
+                        data?</label>
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control form-control-lg" id="questionInput"
+                            placeholder="e.g., What's the trend of suicides among white people from 1999 to 2020?">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search me-2"></i>Ask
+                        </button>
+                    </div>
                 </div>
-                <button type="submit" class="btn btn-primary btn-lg">Ask Question</button>
-                
-                <div class="example-questions mt-3">
-                    <p class="text-muted mb-2">Try these examples:</p>
-                    <span class="example-question">What's the trend of suicides among white people from 1999 to 2020?</span>
+
+                <div class="example-questions">
+                    <p class="text-muted mb-2 fw-bold"><i class="fas fa-lightbulb me-2"></i>Try these examples:</p>
+                    <span class="example-question">What's the trend of suicides among white people from 1999 to
+                        2020?</span>
                     <span class="example-question">How do homicide rates compare between males and females?</span>
                     <span class="example-question">What age group has the highest suicide rate?</span>
                     <span class="example-question">How have unintentional injury deaths changed over time?</span>
@@ -202,33 +440,35 @@
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
-            <p class="mt-2">Analyzing your question and generating insights...</p>
+            <p class="mt-3 fw-medium">Analyzing your question and generating insights...</p>
         </div>
 
-        <div class="error-message" id="errorMessage"></div>
+        <div class="error-message" id="errorMessage">
+            <i class="fas fa-exclamation-circle me-2"></i><span id="errorText"></span>
+        </div>
 
         <div class="result-container" id="resultContainer" style="display: none;">
             <h2 id="questionDisplay"></h2>
-            
+
             <div class="visualization-container" id="visualizationContainer">
                 <!-- Visualization will be inserted here -->
             </div>
-            
+
             <div class="answer-container">
-                <h3>Analysis:</h3>
+                <h3>Analysis</h3>
                 <div class="markdown-content" id="answerContent">
                     <!-- Answer will be inserted here -->
                 </div>
             </div>
-            
-            <div class="mt-3 text-muted" id="sourceInfo">
+
+            <div id="sourceInfo" class="mt-4">
                 <!-- Source info will be inserted here -->
             </div>
         </div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             const questionForm = document.getElementById('questionForm');
             const questionInput = document.getElementById('questionInput');
             const loading = document.querySelector('.loading');
@@ -238,43 +478,44 @@
             const answerContent = document.getElementById('answerContent');
             const sourceInfo = document.getElementById('sourceInfo');
             const errorMessage = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
             const showMoreInfo = document.getElementById('showMoreInfo');
             const moreDatasetInfo = document.getElementById('moreDatasetInfo');
             const exampleQuestions = document.querySelectorAll('.example-question');
 
             // Toggle dataset info
-            showMoreInfo.addEventListener('click', function() {
+            showMoreInfo.addEventListener('click', function () {
                 if (moreDatasetInfo.style.display === 'none') {
                     moreDatasetInfo.style.display = 'block';
-                    showMoreInfo.textContent = 'Show less details ▲';
+                    showMoreInfo.innerHTML = 'Show less details <i class="fas fa-chevron-up"></i>';
                 } else {
                     moreDatasetInfo.style.display = 'none';
-                    showMoreInfo.textContent = 'Show more details ▼';
+                    showMoreInfo.innerHTML = 'Show more details <i class="fas fa-chevron-down"></i>';
                 }
             });
 
             // Example questions
-            exampleQuestions.forEach(function(example) {
-                example.addEventListener('click', function() {
-                    questionInput.value = this.textContent;
+            exampleQuestions.forEach(function (example) {
+                example.addEventListener('click', function () {
+                    questionInput.value = this.textContent.trim();
                     questionInput.focus();
                 });
             });
 
-            questionForm.addEventListener('submit', async function(e) {
+            questionForm.addEventListener('submit', async function (e) {
                 e.preventDefault();
-                
+
                 const question = questionInput.value.trim();
                 if (!question) {
                     showError('Please enter a question.');
                     return;
                 }
-                
+
                 // Show loading indicator
                 loading.style.display = 'block';
                 resultContainer.style.display = 'none';
                 errorMessage.style.display = 'none';
-                
+
                 try {
                     const response = await fetch('/ask', {
                         method: 'POST',
@@ -283,46 +524,64 @@
                         },
                         body: JSON.stringify({ question })
                     });
-                    
+
                     if (!response.ok) {
                         const errorData = await response.json();
                         throw new Error(errorData.error || 'Failed to process your question');
                     }
-                    
+
                     const data = await response.json();
-                    
+
                     // Display the results
                     questionDisplay.textContent = data.question;
-                    
+
                     // Render markdown content using marked.js
                     answerContent.innerHTML = marked.parse(data.answer);
-                    
+
                     // Display visualization if available
-                    if (data.visualization_path) {
+                    if (data.visualization_id) {
+                        // Use the visualization ID to construct the URL
+                        visualizationContainer.innerHTML = `
+                            <img src="/visualizations/${data.visualization_id}" alt="Data Visualization" class="img-fluid">
+                        `;
+                        visualizationContainer.style.display = 'block';
+                        console.log(`Loading visualization from: /visualizations/${data.visualization_id}`);
+                    } else if (data.visualization_path) {
+                        // For backward compatibility with older responses
                         visualizationContainer.innerHTML = `
                             <img src="${data.visualization_path}" alt="Data Visualization" class="img-fluid">
                         `;
                         visualizationContainer.style.display = 'block';
+                        console.log(`Loading visualization from path: ${data.visualization_path}`);
                     } else {
                         visualizationContainer.style.display = 'none';
+                        console.log('No visualization available');
                     }
-                    
+
                     // Show source info
                     if (data.source === 'cache') {
                         sourceInfo.innerHTML = `
-                            <p>This answer was retrieved from our knowledge base.</p>
-                            <p>Similar question: "${data.similar_question}" (${(data.similarity * 100).toFixed(1)}% match)</p>
+                            <div class="alert alert-info">
+                                <i class="fas fa-database me-2"></i>
+                                <strong>Source:</strong> This answer was retrieved from our knowledge base.
+                                <p class="mb-0 mt-1"><small>Similar question: "${data.similar_question}" (${(data.similarity * 100).toFixed(1)}% match)</small></p>
+                            </div>
                         `;
                     } else {
-                        sourceInfo.innerHTML = `<p>This answer was freshly generated based on your question.</p>`;
+                        sourceInfo.innerHTML = `
+                            <div class="alert alert-success">
+                                <i class="fas fa-robot me-2"></i>
+                                <strong>Source:</strong> This answer was freshly generated based on your question.
+                            </div>
+                        `;
                     }
-                    
+
                     // Show the result container
                     resultContainer.style.display = 'block';
-                    
+
                     // Scroll to results
                     resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    
+
                 } catch (error) {
                     showError(error.message || 'An error occurred while processing your question.');
                 } finally {
@@ -330,9 +589,9 @@
                     loading.style.display = 'none';
                 }
             });
-            
+
             function showError(message) {
-                errorMessage.textContent = message;
+                errorText.textContent = message;
                 errorMessage.style.display = 'block';
                 errorMessage.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
@@ -342,4 +601,5 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>
